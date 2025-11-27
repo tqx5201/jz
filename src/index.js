@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import htmlContent from '../public/index.html'   // HTML 字符串
 
 const app = new Hono()
-const JWT_SECRET = env.JWT_SECRET   // 从环境变量读取
+let JWT_SECRET = ''
 
 /* ===== 0. 数据库初始化 ===== */
 const initDB = async (db) => {
@@ -72,6 +72,7 @@ app.get('/', (c) => c.html(htmlContent))
 
 /* ===== 4. API 总入口 ===== */
 app.post('/api', async (c) => {
+  if (!JWT_SECRET) JWT_SECRET = c.env.JWT_SECRET
   const db = c.env.DB
   await initDB(db)
   const body = await c.req.json().catch(() => ({}))
