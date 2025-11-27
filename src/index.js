@@ -2,7 +2,6 @@ import { Hono } from 'hono'
 import htmlContent from '../public/index.html'   // HTML 字符串
 
 const app = new Hono()
-let JWT_SECRET = ''
 
 /* ===== 0. 数据库初始化 ===== */
 const initDB = async (db) => {
@@ -35,18 +34,18 @@ const initDB = async (db) => {
 }
 
 /* ===== 1. 工具：哈希 & JWT ===== */
-async function hashPwd(p) {
+async function hashPwd(p,JWT_SECRET) {
   const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(p + JWT_SECRET))
   return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('')
 }
-async function signJWT(sub) {
+async function signJWT(sub,JWT_SECRET) {
   const header = btoa(JSON.stringify({ alg: 'HS256', typ: 'JWT' }))
   const payload = btoa(JSON.stringify({ sub, iat: Math.floor(Date.now() / 1000), exp: Math.floor(Date.now() / 1000) + 86400 }))
   const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(JWT_SECRET), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'])
   const sig = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(header + '.' + payload))
   return header + '.' + payload + '.' + [...new Uint8Array(sig)].map(b => b.toString(16).padStart(2, '0')).join('')
 }
-async function verifyJWT(token) {
+async function verifyJWT(token,JWT_SECRET) {
   const [h, p, s] = token.split('.')
   if (!h || !p || !s) throw new Error('bad token')
   const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(JWT_SECRET), { name: 'HMAC', hash: 'SHA-256' }, false, ['verify'])
@@ -59,7 +58,7 @@ async function verifyJWT(token) {
 async function auth(c, next) {
   try {
     const token = c.req.header('Authorization')?.replace('Bearer ', '') || ''
-    const payload = await verifyJWT(token)
+    const payload = await verifyJWT(token,JWT_SECRET)
     c.set('uid', payload.sub)
     return next()
   } catch {
@@ -72,7 +71,7 @@ app.get('/', (c) => c.html(htmlContent))
 
 /* ===== 4. API 总入口 ===== */
 app.post('/api', async (c) => {
-  if (JWT_SECRET==='') JWT_SECRET = c.env.JWT_SECRET
+  const JWT_SECRET = c.env.JWT_SECRET
   const db = c.env.DB
   await initDB(db)
   const body = await c.req.json().catch(() => ({}))
@@ -86,15 +85,15 @@ app.post('/api', async (c) => {
     if (op === 'register') {
       const exist = await db.prepare('SELECT id FROM users WHERE user=?').bind(user).first()
       if (exist) return c.json({ error: '用户名已存在' }, 400)
-      const { meta } = await db.prepare('INSERT INTO users(user,pwd) VALUES(?,?)').bind(user, await hashPwd(pwd)).run()
+      const { meta } = await db.prepare('INSERT INTO users(user,pwd) VALUES(?,?)').bind(user, await hashPwd(pwd,JWT_SECRET)).run()
       const id = meta.last_row_id
-      const token = await signJWT(id)
+      const token = await signJWT(id,JWT_SECRET)
       return c.json({ token, uname: user, uid: id })
     }
     if (op === 'login') {
       const row = await db.prepare('SELECT id,pwd FROM users WHERE user=?').bind(user).first()
-      if (!row || row.pwd !== (await hashPwd(pwd))) return c.json({ error: '账号或密码错误' }, 401)
-      const token = await signJWT(row.id)
+      if (!row || row.pwd !== (await hashPwd(pwd,JWT_SECRET))) return c.json({ error: '账号或密码错误' }, 401)
+      const token = await signJWT(row.id,JWT_SECRET)
       return c.json({ token, uname: user, uid: row.id })
     }
   }
