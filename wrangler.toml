@@ -3,5 +3,5 @@ main = "src/index.js"
 compatibility_date = "2025-11-27"
 [[d1_databases]]
 binding = "DB"
-database_name = "accounting-db"
+database_name = "jz"
 database_id = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
