@@ -1,227 +1,386 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-  <meta charset="UTF-8" />
-  <title>Cloudflare D1 记账本</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <link href="https://cdn.tailwindcss.com/3.4.0" rel="stylesheet">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
-  <script src="https://unpkg.com/alpinejs@3" defer></script>
-  <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+<meta charset="UTF-8" />
+<title>记账小程序</title>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"/>
+<style>
+  .tab-active{border-bottom:3px solid #3b82f6;color:#3b82f6}
+  .fade-in{animation:fadeIn .3s ease-in}@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+  .btn-inc.active{background:#d1fae5;color:#065f46;border-color:#34d399}
+  .btn-exp.active{background:#fee2e2;color:#991b1b;border-color:#f87171}
+  .chart-box{max-width:100%;height:280px}
+</style>
 </head>
-<body class="bg-gray-50">
-  <div class="max-w-5xl mx-auto p-4" x-data="app">
-    <!-- 登录/注册 -->
-    <template x-if="!token">
-      <div class="max-w-md mx-auto mt-20 bg-white rounded shadow p-6">
-        <h1 class="text-xl font-bold mb-4" x-text="tab==='login'?'登录':'注册'"></h1>
-        <form @submit.prevent="handleAuth">
-          <input x-model="form.email" type="email" placeholder="邮箱" required class="input">
-          <input x-model="form.pwd" type="password" placeholder="密码" required class="input mt-2">
-          <button class="btn mt-4 w-full" x-text="tab==='login'?'登录':'注册'"></button>
-        </form>
-        <div class="text-center text-sm mt-4 text-blue-600 underline cursor-pointer"
-             x-text="tab==='login'?'没有账号？注册':'已有账号？登录'" @click="tab=tab==='login'?'reg':'login'"></div>
-      </div>
-    </template>
+<body class="bg-gray-900" style="background-color:#111827">
+<div class="min-h-screen bg-gray-50 flex flex-col">
+  <!-- 最大宽度 + 居中 -->
+  <div class="w-full max-w-5xl mx-auto">
+    <!-- 原有 mainApp、footer 等全部放这里 -->
 
-<!-- 记账 -->
-<template x-if="token">
-  <div>
-    <header class="flex justify-between items-center mb-6">
-      <h1 class="text-2xl font-bold">我的账本</h1>
-      <button @click="logout" class="btn-white">退出</button>
-    </header>
+	<!-- ================= 登录/注册 ================= -->
+	<section id="loginBox" class="min-h-screen flex items-center justify-center from-gray-900 via-gray-800 to-black">
+	  <div class="bg-white/90 p-6 rounded shadow w-full max-w-md mx-4 border border-blue-300">  
+		<h2 class="text-xl mb-4" id="formTitle">登录</h2>
+		<form id="authForm" class="space-y-3">
+		  <input id="user" placeholder="用户名" required class="w-full px-3 py-2 border rounded"/>
+		  <input id="pwd" type="password" placeholder="密码" required class="w-full px-3 py-2 border rounded"/>
+		  <button class="w-full bg-blue-500 text-white py-2 rounded">进入</button>
+		</form>
+		<div class="text-center mt-3 text-sm">
+		  <span id="switchText">还没有账号？</span>
+		  <button id="switchBtn" class="text-blue-500">立即注册</button>
+		</div>
+		<p id="authTip" class="text-red-500 text-sm text-center mt-2 hidden"></p>
+	  </div>
+	</section>
 
-    <!-- 新增 -->
-    <div class="bg-white rounded shadow p-4 mb-4">
-      <form @submit.prevent="addRecord" class="grid grid-cols-2 md:grid-cols-5 gap-2">
-        <input x-model="newRec.date" type="date" required class="input">
-        <select x-model="newRec.type" @change="loadCats" required class="input">
-          <option value="支出">支出</option><option value="收入">收入</option>
-        </select>
-        <select x-model="newRec.category_id" required class="input">
-          <option value="">分类</option>
-          <template x-for="c in cats.filter(i=>i.type===newRec.type)" :key="c.id">
-            <option :value="c.id" x-text="c.name"></option>
-          </template>
-        </select>
-        <input x-model.number="newRec.amount" step="0.01" min="0.01" placeholder="金额" required class="input">
-        <input x-model="newRec.remark" placeholder="备注" class="input">
-        <button class="btn col-span-2 md:col-span-1">保存</button>
-      </form>
+	<!-- ================= 主界面 ================= -->
+	<div id="mainApp" class="hidden flex flex-col h-screen">
+	   <header class="bg-white shadow-sm p-4 flex justify-between items-center">
+		  <h1 class="text-xl font-semibold text-gray-800">我的账本</h1>
+		  <div class="flex items-center space-x-2">
+			  <span id="userInfo" class="text-sm text-gray-600"></span>
+			  <button id="logoutBtn" class="text-red-500 hover:text-red-700 text-sm">
+				  <i class="fas fa-sign-out-alt"></i> 退出
+			  </button>
+		  </div>
+		</header>
+
+	  <main class="flex-1 overflow-y-auto">
+		<div id="flowPage" class="page">
+		  <div class="grid grid-cols-2 gap-4 p-4">
+			<div class="bg-white p-4 rounded shadow border border-green-300"><div class="text-sm text-gray-600">最近收入</div><div id="incSum" class="text-green-600 font-bold text-xl">¥0</div></div>
+			<div class="bg-white p-4 rounded shadow  border border-red-300"><div class="text-sm text-gray-600">最近支出</div><div id="expSum" class="text-red-600 font-bold text-xl">¥0</div></div>
+		  </div>
+		  <div class="mx-4 mb-4 bg-white rounded shadow border border-blue-300">
+			<div class="p-3 border-b font-semibold">最近6笔</div>
+			<div id="recordList" class="divide-y"></div>
+		  </div>
+		</div>
+
+		
+		
+		
+		<!-- ================= 分析页：双饼图 + 下方清单 ================= -->
+		<div id="anaPage" class="page hidden">
+		  <!-- 周期切换 + 翻页 -->
+		  <div class="bg-white p-3 flex items-center justify-between text-sm">
+			<button id="prevBtn" class="px-3 py-1 border rounded">‹ 上一</button>
+			<div class="flex items-center space-x-2">
+			  <button data-period="week"   class="period-btn px-2 py-1 border rounded text-xs">周</button>
+			  <button data-period="month" class="period-btn px-2 py-1 border rounded text-xs bg-blue-500 text-white">月</button>
+			  <button data-period="year"  class="period-btn px-2 py-1 border rounded text-xs">年</button>
+			</div>
+			<span id="dateTitle" class="font-semibold"></span>
+			<button id="nextBtn" class="px-3 py-1 border rounded">下一 ›</button>
+		  </div>
+
+		  <!-- 双饼图：收入 / 支出分开 -->
+		  <div class="p-4 grid gap-4 grid-cols-1 md:grid-cols-2">
+			<div class="bg-white p-4 rounded shadow chart-box border border-green-300"><canvas id="pieInc"></canvas></div>
+			<div class="bg-white p-4 rounded shadow chart-box border border-red-300"><canvas id="pieExp"></canvas></div>
+		  </div>
+
+		  <!-- 当前周期全部流水（正序，收入/支出混合，可编辑/删除） -->
+		  <div class="mx-4 mb-4 bg-white rounded shadow border border-blue-300">
+			<div class="p-3 border-b font-semibold">流水明细</div>
+			<div id="anaList" class="divide-y"></div>
+		  </div>
+		</div>
+
+	  </main>
+
+<!-- 底部导航：吸附底端，不随滚动 -->
+      <footer class="flex-shrink-0 bg-white border-t flex text-center text-xs">
+        <button data-p="flow" class="tab-btn flex-1 py-2 tab-active"><i class="fas fa-list block mb-1"></i>概览</button>
+        <button data-p="ana" class="tab-btn flex-1 py-2"><i class="fas fa-chart-bar block mb-1"></i>流水</button>
+      </footer>
+
+      <!-- 记账按钮：底部居中，不随滚动 -->
+      <button id="addBtn" class="fixed bottom-7 left-1/2 -translate-x-1/2 w-12 h-12 md:w-10 md:h-10 bg-blue-500 text-white rounded-full shadow-lg text-lg md:text-sm">
+        <i class="fas fa-plus"></i>
+      </button>
+
+	</div>
+	</div>
+</div>
+
+
+<!-- 记账弹层 -->
+<div id="addModal" class="hidden fixed inset-0 bg-black/50 flex items-end justify-center z-30">
+  <form id="addForm" class="bg-white w-full max-w-lg rounded-t p-4 fade-in">
+    <div class="flex justify-between items-center mb-3">
+      <h3 class="font-semibold" id="ModalTitle">记一笔</h3>
+      <button type="button" id="closeModal"><i class="fas fa-times"></i></button>
     </div>
-
-    <!-- 搜索 -->
-    <div class="bg-white rounded shadow p-4 mb-4 flex flex-wrap gap-2 items-end">
-      <div>
-        <label class="text-xs text-gray-600">分类</label>
-        <select x-model="filter.category_id" @change="loadPage" class="input">
-          <option value="">全部分类</option>
-          <template x-for="c in cats" :key="c.id">
-            <option :value="c.id" x-text="c.name+'('+c.type+')'"></option>
-          </template>
-        </select>
-      </div>
-      <div>
-        <label class="text-xs text-gray-600">年份</label>
-        <select x-model="filter.year" @change="loadPage" class="input">
-          <option value="">全部</option>
-          <template x-for="y in dates.years" :key="y"><option x-text="y"></option></template>
-        </select>
-      </div>
-      <div>
-        <label class="text-xs text-gray-600">月份</label>
-        <select x-model="filter.month" @change="loadPage" class="input">
-          <option value="">全部</option>
-          <template x-for="m in dates.months" :key="m"><option x-text="m"></option></template>
-        </select>
-      </div>
-      <button @click="resetFilter" class="btn-white">重置</button>
-      <div class="ml-auto text-sm text-gray-700">
-        本页收入：<b class="text-green-600" x-text="pageStat.income.toFixed(2)"></b> |
-        支出：<b class="text-red-600" x-text="pageStat.expense.toFixed(2)"></b>
-      </div>
+    <div class="flex mb-3">
+      <button type="button" data-typ="income" class="typeBtn btn-inc flex-1 py-2 border rounded-l active">收入</button>
+      <button type="button" data-typ="expense" class="typeBtn btn-exp flex-1 py-2 border rounded-r">支出</button>
     </div>
+    <input id="amount" type="number" step="0.01" placeholder="金额" required class="w-full mb-3 px-3 py-2 border rounded"/>
+    <select id="category" required class="w-full mb-3 px-3 py-2 border rounded"></select>
+    <input id="recordDate" type="date" required class="w-full mb-3 px-3 py-2 border rounded"/>
+    <input id="note" placeholder="备注（可选）" class="w-full mb-4 px-3 py-2 border rounded"/>
+    <button class="w-full bg-blue-500 text-white py-2 rounded">保存</button>
+  </form>
+</div>
 
-    <!-- 列表 -->
-    <div class="bg-white rounded shadow overflow-x-auto">
-      <table class="w-full text-sm">
-        <thead class="bg-gray-100">
-          <tr><th class="p-2">日期</th><th>分类</th><th>金额</th><th>备注</th><th class="w-20">操作</th></tr>
-        </thead>
-        <tbody>
-          <template x-for="r in pageData.list" :key="r.id">
-            <tr class="border-t hover:bg-gray-50">
-              <td class="p-2" x-text="r.date"></td>
-              <td>
-                <span class="px-2 py-0.5 rounded text-xs"
-                      :class="r.type==='收入'?'bg-green-100 text-green-700':'bg-red-100 text-red-700'"
-                      x-text="r.category"></span>
-              </td>
-              <td :class="r.type==='收入'?'text-green-600':'text-red-600'" x-text="r.amount.toFixed(2)"></td>
-              <td x-text="r.remark||'-'"></td>
-              <td class="flex gap-2">
-                <button @click="edit(r)" class="text-blue-600 hover:underline">改</button>
-                <button @click="del(r.id)" class="text-red-600 hover:underline">删</button>
-              </td>
-            </tr>
-          </template>
-        </tbody>
-      </table>
-      <div class="px-4 py-2 flex justify-between items-center text-sm text-gray-600">
-        <div>共 <span x-text="pageData.total"></span> 条</div>
-        <div class="flex gap-2">
-          <button @click="turn(pageData.page-1)" :disabled="pageData.page<=1" class="btn-white">上一页</button>
-          <span x-text="pageData.page+' / '+pageData.pages"></span>
-          <button @click="turn(pageData.page+1)" :disabled="pageData.page>=pageData.pages" class="btn-white">下一页</button>
-        </div>
-      </div>
+<!-- 新增分类弹层 -->
+<div id="catModal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-40">
+  <div class="bg-white rounded p-4 w-72">
+    <h4 class="font-semibold mb-2">新增分类</h4>
+    <input id="newCatInput" maxlength="10" placeholder="分类名称" class="w-full mb-3 px-3 py-2 border rounded">
+    <div class="flex justify-end space-x-2">
+      <button id="cancelCat" class="px-3 py-1 border rounded">取消</button>
+      <button id="saveCat" class="px-3 py-1 bg-blue-500 text-white rounded">保存</button>
     </div>
-
-    <!-- 分类管理 -->
-    <div class="mt-6 bg-white rounded shadow p-4">
-      <div class="flex justify-between items-center mb-2">
-        <h2 class="font-bold">自定义分类</h2>
-        <button @click="showCatForm=!showCatForm" class="btn-white">+ 新增</button>
-      </div>
-      <form x-show="showCatForm" @submit.prevent="addCat" class="flex gap-2 mb-2">
-        <input x-model="catForm.name" placeholder="名称" required class="input">
-        <select x-model="catForm.type" required class="input">
-          <option value="支出">支出</option><option value="收入">收入</option>
-        </select>
-        <button class="btn-white">保存</button>
-      </form>
-      <div class="flex flex-wrap gap-2">
-        <template x-for="c in cats" :key="c.id">
-          <span class="px-2 py-1 rounded text-xs bg-gray-100"
-                :class="c.type==='收入'?'text-green-700':'text-red-700'" x-text="c.name"></span>
-        </template>
-      </div>
-    </div>
-  </div>
-</template>
-
-<!-- 编辑弹窗 -->
-<div x-show="modal" class="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center">
-  <div class="bg-white rounded p-4 w-full max-w-md">
-    <h3 class="font-bold mb-2">编辑记录</h3>
-    <form @submit.prevent="saveEdit">
-      <input x-model="editRec.date" type="date" required class="input">
-      <select x-model="editRec.category_id" required class="input mt-2">
-        <template x-for="c in cats.filter(i=>i.type===editType)" :key="c.id">
-          <option :value="c.id" x-text="c.name"></option>
-        </template>
-      </select>
-      <input x-model.number="editRec.amount" step="0.01" min="0.01" required class="input mt-2">
-      <input x-model="editRec.remark" class="input mt-2">
-      <div class="flex gap-2 mt-4">
-        <button type="submit" class="btn">保存</button>
-        <button type="button" @click="modal=false" class="btn-white">取消</button>
-      </div>
-    </form>
   </div>
 </div>
-  </div>
-  <style>
-    .input{@apply w-full px-2 py-1 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500}
-    .btn{@apply bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700}
-    .btn-white{@apply bg-white border px-3 py-1 rounded hover:bg-gray-50}
-  </style>
-  <script>
-  axios.defaults.baseURL='/api'
-  document.addEventListener('alpine:init',()=>{
-    Alpine.data('app',()=>({
-      token:localStorage.getItem('token'),
-      tab:'login',
-      form:{email:'',pwd:''},
-      newRec:{date:new Date().toISOString().substr(0,10),type:'支出',category_id:'',amount:'',remark:''},
-      editRec:{},editType:'',modal:false,
-      cats:[],showCatForm:false,catForm:{name:'',type:'支出'},
-      dates:{years:[],months:[]},
-      filter:{category_id:'',year:'',month:''},
-      pageData:{total:0,page:1,pages:1,list:[]},
-      pageStat:{income:0,expense:0},
-      async init(){
-        if(this.token){
-          axios.defaults.headers.common['Authorization']='Bearer '+this.token
-          await this.loadDates(); this.loadPage(); this.loadCats()
-        }
-      },
-      async handleAuth(){
-        const url=this.tab==='login'?'/login':'/register'
-        const {data}=await axios.post(url,this.form)
-        if(data.token){localStorage.setItem('token',data.token);location.reload()}else alert(data.msg||'错误')
-      },
-      logout(){localStorage.clear();location.reload()},
-      async loadCats(){this.cats=(await axios.get('/categories')).data},
-      async loadDates(){
-        const rows=(await axios.get('/records/dates')).data
-        this.dates={years:[...new Set(rows.map(r=>r.year))],months:[...new Set(rows.map(r=>r.month))]}
-      },
-      async loadPage(){
-        const params={page:this.pageData.page,size:20,...this.filter}
-        const {data}=await axios.get('/records/search',{params})
-        this.pageData=data;this.pageStat=data.stat
-      },
-      turn(p){if(p<1||p>this.pageData.pages)return;this.pageData.page=p;this.loadPage()},
-      resetFilter(){this.filter={category_id:'',year:'',month:''};this.pageData.page=1;this.loadPage()},
-      async addRecord(){
-        await axios.post('/records',this.newRec)
-        this.newRec.amount='';this.newRec.remark='';this.loadPage()
-      },
-      edit(r){this.editRec={...r};this.editType=r.type;this.modal=true},
-      async saveEdit(){
-        await axios.put('/records/'+this.editRec.id,this.editRec)
-        this.modal=false;this.loadPage()
-      },
-      async del(id){if(!confirm('删除不可恢复！'))return;await axios.delete('/records/'+id);this.loadPage()},
-      async addCat(){
-        await axios.post('/categories',this.catForm)
-        this.catForm.name='';this.showCatForm=false;await this.loadCats()
-      }
-    }))
-  })
-  </script>
+
+
+
+
+
+
 </body>
+
+
+
+<script>
+/* ================= 工具 ================= */
+const $=q=>document.querySelector(q);
+const ajax=async(d)=>{
+  const res=await fetch('/api',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+tk},body:JSON.stringify(d)});
+  return res.json();
+};
+const toast=(m,t=2500)=>{
+  const n=document.createElement('div');n.className='fixed top-4 right-4 bg-green-500 text-white px-4 py-2 rounded shadow fade-in';n.textContent=m;
+  document.body.appendChild(n);setTimeout(()=>n.remove(),t);
+};
+
+/* ================= JWT ================= */
+let tk='',uid='',uname='',current='flow',editingId,chartPie,chartBar,period='month',offset=0;
+function setToken(t){tk=t;localStorage.setItem('tk',t);}
+function getToken(){return localStorage.getItem('tk')||'';}
+function clrToken(){localStorage.removeItem('tk');tk='';}
+
+/* ================= 登录/注册切换 ================= */
+let isLogin=true;
+const formTitle=$('#formTitle'),switchBtn=$('#switchBtn'),switchText=$('#switchText'),authTip=$('#authTip'),authForm=$('#authForm');
+
+function toggleMode(){
+  isLogin=!isLogin;
+  formTitle.textContent=isLogin?'登录':'注册';
+  switchBtn.textContent=isLogin?'立即注册':'已有账号？登录';
+  switchText.textContent=isLogin?'还没有账号？':'已有账号？';
+  authTip.classList.add('hidden');
+}
+switchBtn.onclick=toggleMode;
+
+authForm.onsubmit=async e=>{
+  e.preventDefault();
+  const user=$('#user').value.trim(),pwd=$('#pwd').value.trim();
+  if(!user||!pwd)return authTip.textContent='请填写完整',authTip.classList.remove('hidden');
+  const res=await ajax({op:isLogin?'login':'register',user,pwd});
+  if(res.token){setToken(res.token);uname=res.uname;enterApp();}
+  else{authTip.textContent=res.error||'操作失败';authTip.classList.remove('hidden');}
+};
+
+/* ================= 进入主界面 ================= */
+async function enterApp(){
+  $('#loginBox').classList.add('hidden');$('#mainApp').classList.remove('hidden');
+  //console.log(uname);
+  $('#userInfo').textContent=uname||'用户';
+  bindMainEvents();
+  switchTab('flow');
+  loadList();
+  if(current==='ana')loadAna();
+}
+$('#logoutBtn').onclick=()=>{clrToken();location.reload();};
+
+/* ================= 主界面事件绑定 ================= */
+function bindMainEvents(){
+  document.querySelectorAll('.tab-btn').forEach(b=>b.onclick=()=>switchTab(b.dataset.p));
+  $('#addBtn').onclick=()=>{$('#addModal').classList.remove('hidden');initAddForm('expense');};
+  $('#closeModal').onclick=()=>{$('#addModal').classList.add('hidden');};
+  document.querySelectorAll('.typeBtn').forEach(b=>b.onclick=()=>initAddForm(b.dataset.typ));
+  $('#cancelCat').onclick=()=>$('#catModal').classList.add('hidden');
+  $('#saveCat').onclick=async ()=>{
+    const name=$('#newCatInput').value.trim();
+    if(!name)return toast('名称不能为空');
+    await ajax({op:'catAdd',type:$('#newCatInput').dataset.type,name});
+    $('#catModal').classList.add('hidden');
+    toast('已添加');loadCategories(currentType);$('#category').value=name;
+  };
+  $('#prevBtn').onclick=()=>{offset--;loadAna();};
+  $('#nextBtn').onclick=()=>{offset++;loadAna();};
+  $('#addForm').onsubmit=async e=>{
+    e.preventDefault();
+    const d={op:editingId?'edit':'add',id:editingId,type:currentType,amount:+$('#amount').value,category:$('#category').value,date:$('#recordDate').value,note:$('#note').value};
+    await ajax(d);$('#addModal').classList.add('hidden');$('#addForm').reset();
+    toast('已保存');loadList();if(current==='ana')loadAna();
+  };
+}
+
+/* ================= 页面切换 ================= */
+function switchTab(p){
+  current=p;document.querySelectorAll('.page').forEach(pg=>pg.classList.add('hidden'));
+  $(`#${p==='flow'?'flow':'ana'}Page`).classList.remove('hidden');
+  document.querySelectorAll('.tab-btn').forEach(t=>t.classList.toggle('tab-active',t.dataset.p===p));
+  if(p==='ana')loadAna();
+}
+
+/* ================= 记账/分类 ================= */
+let currentType='expense';
+async function initAddForm(typ,isadd=1){
+  if(isadd){editingId=null;$('#ModalTitle').textContent='记一笔';$('#amount').value='';$('#recordDate').value='';$('#note').value='';$('#category').value='';}
+  currentType=typ;
+  document.querySelectorAll('.typeBtn').forEach(b=>{
+    b.classList.toggle('active',b.dataset.typ===typ);
+  });
+  await loadCategories(typ);$('#recordDate').value=new Date().toISOString().slice(0,10);
+}
+
+
+
+async function loadCategories(typ){
+  const list=await ajax({op:'catList',type:typ});
+  const s=$('#category');s.innerHTML='';
+  list.forEach(c=>s.append(new Option(c.name,c.name)));
+  s.append(new Option('+ 新增分类','__NEW__'));
+}
+document.addEventListener('change',async e=>{
+  if(e.target.id==='category' && e.target.value==='__NEW__'){
+    $('#catModal').classList.remove('hidden');
+    $('#newCatInput').value='';
+    $('#newCatInput').dataset.type=currentType;
+    $('#newCatInput').focus();
+  }
+});
+
+/* ================= 流水 ================= */
+async function loadList(){
+  const res=await ajax({op:'list', limit:6});
+  let h='';res.forEach(r=>{
+    const sign=r.type==='income'?'+':'-',col=r.type==='income'?'text-green-600':'text-red-600';
+    h+=`<div class="p-3 flex justify-between"><div><div class="font-semibold">${r.category}</div><div class="text-xs text-gray-500">${r.date} ${r.note||''}</div></div><div class="${col} font-bold">${sign}¥${(+r.amount).toFixed(2)}</div></div>`;
+  });
+  $('#recordList').innerHTML=h||'<div class="p-4 text-gray-500 text-center">暂无记录</div>';
+  $('#incSum').textContent='¥'+(res.filter(r=>r.type==='income').reduce((s,a)=>s+ +a.amount,0)).toFixed(2);
+  $('#expSum').textContent='¥'+(res.filter(r=>r.type==='expense').reduce((s,a)=>s+ +a.amount,0)).toFixed(2);
+}
+
+/* ================= 编辑 & 删除 ================= */
+async function editRecord(id){
+  editingId=id;
+  const list=await ajax({op:'list',id:id}),row=list.find(r=>r.id==id);
+  if(!row)return toast('记录不存在');
+ 
+  $('#amount').value=row.amount;$('#recordDate').value=row.date;$('#note').value=row.note;
+  
+  
+  $('#ModalTitle').textContent='编辑流水';
+  $('#addModal').classList.remove('hidden');
+  
+  await loadCategories(row.type);
+  //await initAddForm(row.type,0);
+  
+  $('#category').value=row.category;
+}
+async function delRecord(id){
+  if(!confirm('确定删除？'))return;
+  await ajax({op:'del',id});
+  toast('已删除');loadList();loadAna();
+}
+
+
+/* ========= 周期切换 ========= */
+document.querySelectorAll('.period-btn').forEach(btn=>{
+  btn.onclick=()=>{
+    // 样式
+    document.querySelectorAll('.period-btn').forEach(b=>b.classList.remove('bg-blue-500','text-white'));
+    btn.classList.add('bg-blue-500','text-white');
+    // 数据
+    period=btn.dataset.period;
+    offset=0;                          // 换周期时复位
+    loadAna();
+  };
+});
+
+/* ========= 分析页：双饼图 + 下方清单 ========= */
+let chartInc, chartExp;
+
+async function loadAna(){
+  const res = await ajax({op:'stat', period, offset});
+  $('#dateTitle').textContent = res.title;
+
+  // 1. 无数据
+  if(res.cat.length===0 && res.list.length===0){
+    [chartInc,chartExp].forEach(c=>{if(c){c.destroy();c=null;}});
+    $('#anaList').innerHTML='<div class="p-4 text-gray-500 text-center">本区间无流水</div>';
+    return;
+  }
+
+  // 2. 分类汇总 → 双饼图
+  const incCat = res.cat.filter(i=>i.type==='income'),
+        expCat = res.cat.filter(i=>i.type==='expense');
+
+  // 收入饼图
+  if(chartInc){chartInc.destroy();chartInc=null;}
+  chartInc = new Chart($('#pieInc'), {
+    type: 'pie',
+    data: {
+      labels: incCat.map(i=>i.category),
+      datasets: [{ data: incCat.map(i=>i.total), backgroundColor:['#10b981','#34d399','#6ee7b7'] }]
+    },
+    options: { maintainAspectRatio:false, plugins:{ title:{display:true,text:'收入构成'}, legend:{position:'bottom'} } }
+  });
+
+  // 支出饼图
+  if(chartExp){chartExp.destroy();chartExp=null;}
+  chartExp = new Chart($('#pieExp'), {
+    type: 'pie',
+    data: {
+      labels: expCat.map(i=>i.category),
+      datasets: [{ data: expCat.map(i=>i.total), backgroundColor:['#ef4444','#f87171','#fca5a5'] }]
+    },
+    options: { maintainAspectRatio:false, plugins:{ title:{display:true,text:'支出构成'}, legend:{position:'bottom'} } }
+  });
+
+  // 3. 当前周期全部记录（正序，收入/支出混合，可编辑/删除）
+  let html='';
+  
+  res.list.forEach(r=>{
+    const sign=r.type==='income'?'+':'-', col=r.type==='income'?'text-green-600':'text-red-600';
+    html+=`<div class="p-3 flex justify-between items-center border-b">
+      <div><div class="font-semibold">${r.category}</div><div class="text-xs text-gray-500">${r.date} ${r.note||''}</div></div>
+      <div class="flex items-center space-x-2"><span class="${col} font-bold">${sign}¥${(+r.amount).toFixed(2)}</span>
+        <button class="text-blue-500 text-sm px-2 py-1 rounded hover:bg-blue-50" onclick="editRecord(${r.id})"><i class="fas fa-pen text-lg"></i></button>
+		<button class="text-red-500 text-sm px-2 py-1 rounded hover:bg-red-50 ml-2" onclick="delRecord(${r.id})"><i class="fas fa-trash text-lg"></i></button>
+
+      </div>
+    </div>`;
+  });
+  //console.log(html);
+  //$('#anaList').innerHTML(html||'<div class="p-4 text-gray-500 text-center">本区间无流水</div>');
+  
+  const anaList = document.getElementById('anaList');
+  anaList.innerHTML = html || '<div class="p-4 text-gray-500 text-center">本区间无流水</div>';
+}
+
+
+
+
+/* ================= 自动恢复登录 ================= */
+window.onload=async()=>{
+  tk=getToken();if(!tk)return;
+  const ck=await ajax({op:'check'});//console.log(ck);
+  if(ck.ok){uid=ck.uid;uname=ck.uname;enterApp();}else{ clrToken()};
+};
+</script>
+
 </html>
