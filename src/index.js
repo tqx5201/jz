@@ -104,7 +104,7 @@ app.post('/api', async (c) => {
 
     // 分类
     if (op === 'catList') {
-      const list = await db.prepare('SELECT name FROM categories WHERE (userid=0 or user_id=?) AND type=? ORDER BY id DESC').bind(c.get('uid'), body.type).all()
+      const list = await db.prepare('SELECT name FROM categories WHERE (user_id=0 or user_id=?) AND type=? ORDER BY id DESC').bind(c.get('uid'), body.type).all()
       return c.json(list.results)
     }
     if (op === 'catAdd') {
