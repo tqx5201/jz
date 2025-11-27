@@ -88,7 +88,7 @@ const params = [userId]
 if (category_id) { where += ' AND r.category_id=?'; params.push(category_id) }
 if (year) { where += ' AND strftime("%Y",r.date)=?'; params.push(year) }
 if (month) { where += ' AND strftime("%m",r.date)=?'; params.push(month.padStart(2, '0')) }
-const { total } = await db.prepare(SELECT COUNT(*) as total FROM records r ${where}).bind(...params).first()
+const { total } = await db.prepare(`SELECT COUNT(*) as total FROM records r ${where}`).bind(...params).first()
 const list = await db.prepare(
 
  
