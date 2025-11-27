@@ -1,6 +1,6 @@
 {
   "name": "jz",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Edge accounting mini-app on Cloudflare Pages + D1",
   "main": "src/index.js",
   "scripts": {
