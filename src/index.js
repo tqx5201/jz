@@ -5,7 +5,45 @@ const app = new Hono()
 const JWT_SECRET = 'change-me-123456'
 const hash = p => bcrypt.hashSync(p, 10)
 const compare = (p, h) => bcrypt.compareSync(p, h)
+/* ===== 初始化数据库 ===== */
+const initDB = async (db) => {
+const initStmts = [
 
+ 
+`CREATE TABLE IF NOT EXISTS users (
+       id INTEGER PRIMARY KEY AUTOINCREMENT,
+       email TEXT UNIQUE NOT NULL,
+       pwd TEXT NOT NULL,
+       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+     );`
+,
+
+ 
+`CREATE TABLE IF NOT EXISTS categories (
+       id INTEGER PRIMARY KEY AUTOINCREMENT,
+       user_id INTEGER NOT NULL,
+       name TEXT NOT NULL,
+       type TEXT CHECK(type IN ('收入','支出')) NOT NULL,
+       FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+     );`
+,
+
+ 
+`CREATE TABLE IF NOT EXISTS records (
+       id INTEGER PRIMARY KEY AUTOINCREMENT,
+       user_id INTEGER NOT NULL,
+       date DATE NOT NULL,
+       amount REAL NOT NULL,
+       category_id INTEGER NOT NULL,
+       remark TEXT,
+       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+       FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
+       FOREIGN KEY(category_id) REFERENCES categories(id) ON DELETE CASCADE
+     );`
+
+]
+for (const sql of initStmts) await db.prepare(sql).run()
+}
 /* ===== 中间件 ===== */
 const auth = jwt({ secret: JWT_SECRET })
 /* ===== 用户 ===== */
@@ -52,18 +90,20 @@ if (year) { where += ' AND strftime("%Y",r.date)=?'; params.push(year) }
 if (month) { where += ' AND strftime("%m",r.date)=?'; params.push(month.padStart(2, '0')) }
 const { total } = await db.prepare(SELECT COUNT(*) as total FROM records r ${where}).bind(...params).first()
 const list = await db.prepare(
-SELECT r.id, r.date, r.amount, r.remark, c.name as category, c.type
+
+ 
+`SELECT r.id, r.date, r.amount, r.remark, c.name as category, c.type
      FROM records r JOIN categories c ON r.category_id=c.id
-     ${where} ORDER BY r.date DESC, r.id DESC LIMIT ? OFFSET ?
+     ${where} ORDER BY r.date DESC, r.id DESC LIMIT ? OFFSET ?`
 
 ).bind(...params, Number(size), (page - 1) * size).all()
-
-
 const stat = await db.prepare(
-SELECT
+
+ 
+`SELECT
        SUM(CASE WHEN c.type='收入' THEN r.amount ELSE 0 END) AS income,
        SUM(CASE WHEN c.type='支出' THEN r.amount ELSE 0 END) AS expense
-     FROM records r JOIN categories c ON r.category_id=c.id ${where}
+     FROM records r JOIN categories c ON r.category_id=c.id ${where}`
 
 ).bind(...params).first()
 return c.json({ total, page: Number(page), size: Number(size), pages: Math.ceil(total / size), list: list.results, stat })
@@ -72,8 +112,10 @@ return c.json({ total, page: Number(page), size: Number(size), pages: Math.ceil(
 app.get('/api/records/dates', auth, async c => {
 const userId = c.get('jwtPayload').sub
 const rows = await c.env.DB.prepare(
-SELECT DISTINCT strftime('%Y',date) as year, strftime('%m',date) as month
-     FROM records WHERE user_id=? ORDER BY year DESC, month DESC
+
+ 
+`SELECT DISTINCT strftime('%Y',date) as year, strftime('%m',date) as month
+     FROM records WHERE user_id=? ORDER BY year DESC, month DESC`
 
 ).bind(userId).all()
 return c.json(rows.results)
