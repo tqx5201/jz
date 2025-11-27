@@ -17,8 +17,7 @@ const initDB = async (db) => {
        id INTEGER PRIMARY KEY AUTOINCREMENT,
        user_id INTEGER NOT NULL,
        name TEXT NOT NULL,
-       type TEXT CHECK(type IN ('income','expense')) NOT NULL,
-       FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+       type TEXT CHECK(type IN ('income','expense')) NOT NULL
      );`,
     `CREATE TABLE IF NOT EXISTS records (
        id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -105,7 +104,7 @@ app.post('/api', async (c) => {
 
     // 分类
     if (op === 'catList') {
-      const list = await db.prepare('SELECT name FROM categories WHERE user_id=? AND type=? ORDER BY name').bind(c.get('uid'), body.type).all()
+      const list = await db.prepare('SELECT name FROM categories WHERE (userid=0 or user_id=?) AND type=? ORDER BY id DESC').bind(c.get('uid'), body.type).all()
       return c.json(list.results)
     }
     if (op === 'catAdd') {
