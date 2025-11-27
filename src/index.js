@@ -154,7 +154,7 @@ app.post('/api', async (c) => {
       // 简单实现：取当前年-月 ±offset
       const now = new Date()
       now.setMonth(now.getMonth() + offset)
-      const year = now.getFullYear(), month = String(now.getMonth() + 1).padStart(2, '0')
+      const year = String(now.getFullYear()), month = String(now.getMonth() + 1).padStart(2, '0')
       const title = `${year}-${month}`
 
       // 分类汇总
