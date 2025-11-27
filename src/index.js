@@ -8,7 +8,7 @@ async function hashPwd(password) {
 }
 
 
-import indexHtml from '../public/index.html.js'
+import indexHtml from '../public/index.html'
 /* ===== 前端 ===== */
 app.get('/', (c) => {
   return c.html(indexHtml)
