@@ -57,6 +57,7 @@ async function verifyJWT(token,JWT_SECRET) {
 async function auth(c, next) {
   try {
     const token = c.req.header('Authorization')?.replace('Bearer ', '') || ''
+    const JWT_SECRET = c.env.JWT_SECRET
     const payload = await verifyJWT(token,JWT_SECRET)
     c.set('uid', payload.sub)
     return next()
