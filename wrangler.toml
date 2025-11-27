@@ -1,4 +1,4 @@
-name = "cf-d1-accounting"
+name = "jz"
 main = "src/index.js"
 compatibility_date = "2025-11-27"
 [[d1_databases]]
