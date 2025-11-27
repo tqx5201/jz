@@ -8,10 +8,9 @@ async function hashPwd(password) {
 }
 
 
-
+import indexHtml from '../public/index.html.js'
 /* ===== 前端 ===== */
-app.get('/', async () => {
-       const html = await fetch(new URL('../public/index.html', import.meta.url)).then(r => r.text())
-       return new Response(html, { headers: { 'content-type': 'text/html;charset=utf-8' } })
+app.get('/', (c) => {
+  return c.html(indexHtml)
 })
 export default app
