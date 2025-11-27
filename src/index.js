@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import htmlContent from '../public/index.html'   // HTML 字符串
 
 const app = new Hono()
-const JWT_SECRET = 'change-me-123456'
+const JWT_SECRET = c.env.JWT_SECRET   // 从环境变量读取
 
 /* ===== 0. 数据库初始化 ===== */
 const initDB = async (db) => {
