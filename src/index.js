@@ -72,7 +72,7 @@ app.get('/', (c) => c.html(htmlContent))
 
 /* ===== 4. API 总入口 ===== */
 app.post('/api', async (c) => {
-  if (!JWT_SECRET) JWT_SECRET = c.env.JWT_SECRET
+  if (JWT_SECRET==='') JWT_SECRET = c.env.JWT_SECRET
   const db = c.env.DB
   await initDB(db)
   const body = await c.req.json().catch(() => ({}))
