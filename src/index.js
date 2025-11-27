@@ -100,7 +100,11 @@ app.post('/api', async (c) => {
 
   // 需要登录的接口
   return auth(c, async () => {
-    if (op === 'check') return c.json({ ok: true, uid: c.get('uid'), uname: body.user })
+    if (op === 'check') {
+      const row = await db.prepare('SELECT id, user FROM users WHERE id=?').bind(c.get('uid')).first()
+      if (!row) return c.json({ error: 'token无效' }, 401)
+      return c.json({ ok: true, uid: row.id, uname: row.user })   // ← 这里加上 uname
+    }
 
     // 分类
     if (op === 'catList') {
