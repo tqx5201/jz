@@ -1,6 +1,5 @@
 import { Hono } from 'hono'
 import htmlContent from '../public/index.html'   // HTML 字符串
-
 const app = new Hono()
 
 /* ===== 0. 数据库初始化 ===== */
