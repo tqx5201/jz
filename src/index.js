@@ -158,7 +158,7 @@ await c.env.DB.prepare('DELETE FROM records WHERE id=? AND user_id=?').bind(id, 
 return c.json({ ok: true })
 })
 /* ===== 前端 ===== */
-app.get('', async () => {
+app.get('/', async () => {
 const html = await fetch(new URL('../public/index.html', import.meta.url)).then(r => r.text())
 return new Response(html, { headers: { 'content-type': 'text/html;charset=utf-8' } })
 })
