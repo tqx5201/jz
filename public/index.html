@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <title>Cloudflare D1 记账本</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link href="https://cdn.tailwindcss.com/3.4.0" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <script src="https://unpkg.com/alpinejs@3" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+</head>
+<body class="bg-gray-50">
+  <div class="max-w-5xl mx-auto p-4" x-data="app">
+    <!-- 登录/注册 -->
+    <template x-if="!token">
+      <div class="max-w-md mx-auto mt-20 bg-white rounded shadow p-6">
+        <h1 class="text-xl font-bold mb-4" x-text="tab==='login'?'登录':'注册'"></h1>
+        <form @submit.prevent="handleAuth">
+          <input x-model="form.email" type="email" placeholder="邮箱" required class="input">
+          <input x-model="form.pwd" type="password" placeholder="密码" required class="input mt-2">
+          <button class="btn mt-4 w-full" x-text="tab==='login'?'登录':'注册'"></button>
+        </form>
+        <div class="text-center text-sm mt-4 text-blue-600 underline cursor-pointer"
+             x-text="tab==='login'?'没有账号？注册':'已有账号？登录'" @click="tab=tab==='login'?'reg':'login'"></div>
+      </div>
+    </template>
+
+<!-- 记账 -->
+<template x-if="token">
+  <div>
+    <header class="flex justify-between items-center mb-6">
+      <h1 class="text-2xl font-bold">我的账本</h1>
+      <button @click="logout" class="btn-white">退出</button>
+    </header>
+
+    <!-- 新增 -->
+    <div class="bg-white rounded shadow p-4 mb-4">
+      <form @submit.prevent="addRecord" class="grid grid-cols-2 md:grid-cols-5 gap-2">
+        <input x-model="newRec.date" type="date" required class="input">
+        <select x-model="newRec.type" @change="loadCats" required class="input">
+          <option value="支出">支出</option><option value="收入">收入</option>
+        </select>
+        <select x-model="newRec.category_id" required class="input">
+          <option value="">分类</option>
+          <template x-for="c in cats.filter(i=>i.type===newRec.type)" :key="c.id">
+            <option :value="c.id" x-text="c.name"></option>
+          </template>
+        </select>
+        <input x-model.number="newRec.amount" step="0.01" min="0.01" placeholder="金额" required class="input">
+        <input x-model="newRec.remark" placeholder="备注" class="input">
+        <button class="btn col-span-2 md:col-span-1">保存</button>
+      </form>
+    </div>
+
+    <!-- 搜索 -->
+    <div class="bg-white rounded shadow p-4 mb-4 flex flex-wrap gap-2 items-end">
+      <div>
+        <label class="text-xs text-gray-600">分类</label>
+        <select x-model="filter.category_id" @change="loadPage" class="input">
+          <option value="">全部分类</option>
+          <template x-for="c in cats" :key="c.id">
+            <option :value="c.id" x-text="c.name+'('+c.type+')'"></option>
+          </template>
+        </select>
+      </div>
+      <div>
+        <label class="text-xs text-gray-600">年份</label>
+        <select x-model="filter.year" @change="loadPage" class="input">
+          <option value="">全部</option>
+          <template x-for="y in dates.years" :key="y"><option x-text="y"></option></template>
+        </select>
+      </div>
+      <div>
+        <label class="text-xs text-gray-600">月份</label>
+        <select x-model="filter.month" @change="loadPage" class="input">
+          <option value="">全部</option>
+          <template x-for="m in dates.months" :key="m"><option x-text="m"></option></template>
+        </select>
+      </div>
+      <button @click="resetFilter" class="btn-white">重置</button>
+      <div class="ml-auto text-sm text-gray-700">
+        本页收入：<b class="text-green-600" x-text="pageStat.income.toFixed(2)"></b> |
+        支出：<b class="text-red-600" x-text="pageStat.expense.toFixed(2)"></b>
+      </div>
+    </div>
+
+    <!-- 列表 -->
+    <div class="bg-white rounded shadow overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead class="bg-gray-100">
+          <tr><th class="p-2">日期</th><th>分类</th><th>金额</th><th>备注</th><th class="w-20">操作</th></tr>
+        </thead>
+        <tbody>
+          <template x-for="r in pageData.list" :key="r.id">
+            <tr class="border-t hover:bg-gray-50">
+              <td class="p-2" x-text="r.date"></td>
+              <td>
+                <span class="px-2 py-0.5 rounded text-xs"
+                      :class="r.type==='收入'?'bg-green-100 text-green-700':'bg-red-100 text-red-700'"
+                      x-text="r.category"></span>
+              </td>
+              <td :class="r.type==='收入'?'text-green-600':'text-red-600'" x-text="r.amount.toFixed(2)"></td>
+              <td x-text="r.remark||'-'"></td>
+              <td class="flex gap-2">
+                <button @click="edit(r)" class="text-blue-600 hover:underline">改</button>
+                <button @click="del(r.id)" class="text-red-600 hover:underline">删</button>
+              </td>
+            </tr>
+          </template>
+        </tbody>
+      </table>
+      <div class="px-4 py-2 flex justify-between items-center text-sm text-gray-600">
+        <div>共 <span x-text="pageData.total"></span> 条</div>
+        <div class="flex gap-2">
+          <button @click="turn(pageData.page-1)" :disabled="pageData.page<=1" class="btn-white">上一页</button>
+          <span x-text="pageData.page+' / '+pageData.pages"></span>
+          <button @click="turn(pageData.page+1)" :disabled="pageData.page>=pageData.pages" class="btn-white">下一页</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 分类管理 -->
+    <div class="mt-6 bg-white rounded shadow p-4">
+      <div class="flex justify-between items-center mb-2">
+        <h2 class="font-bold">自定义分类</h2>
+        <button @click="showCatForm=!showCatForm" class="btn-white">+ 新增</button>
+      </div>
+      <form x-show="showCatForm" @submit.prevent="addCat" class="flex gap-2 mb-2">
+        <input x-model="catForm.name" placeholder="名称" required class="input">
+        <select x-model="catForm.type" required class="input">
+          <option value="支出">支出</option><option value="收入">收入</option>
+        </select>
+        <button class="btn-white">保存</button>
+      </form>
+      <div class="flex flex-wrap gap-2">
+        <template x-for="c in cats" :key="c.id">
+          <span class="px-2 py-1 rounded text-xs bg-gray-100"
+                :class="c.type==='收入'?'text-green-700':'text-red-700'" x-text="c.name"></span>
+        </template>
+      </div>
+    </div>
+  </div>
+</template>
+
+<!-- 编辑弹窗 -->
+<div x-show="modal" class="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center">
+  <div class="bg-white rounded p-4 w-full max-w-md">
+    <h3 class="font-bold mb-2">编辑记录</h3>
+    <form @submit.prevent="saveEdit">
+      <input x-model="editRec.date" type="date" required class="input">
+      <select x-model="editRec.category_id" required class="input mt-2">
+        <template x-for="c in cats.filter(i=>i.type===editType)" :key="c.id">
+          <option :value="c.id" x-text="c.name"></option>
+        </template>
+      </select>
+      <input x-model.number="editRec.amount" step="0.01" min="0.01" required class="input mt-2">
+      <input x-model="editRec.remark" class="input mt-2">
+      <div class="flex gap-2 mt-4">
+        <button type="submit" class="btn">保存</button>
+        <button type="button" @click="modal=false" class="btn-white">取消</button>
+      </div>
+    </form>
+  </div>
+</div>
+  </div>
+  <style>
+    .input{@apply w-full px-2 py-1 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500}
+    .btn{@apply bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700}
+    .btn-white{@apply bg-white border px-3 py-1 rounded hover:bg-gray-50}
+  </style>
+  <script>
+  axios.defaults.baseURL='/api'
+  document.addEventListener('alpine:init',()=>{
+    Alpine.data('app',()=>({
+      token:localStorage.getItem('token'),
+      tab:'login',
+      form:{email:'',pwd:''},
+      newRec:{date:new Date().toISOString().substr(0,10),type:'支出',category_id:'',amount:'',remark:''},
+      editRec:{},editType:'',modal:false,
+      cats:[],showCatForm:false,catForm:{name:'',type:'支出'},
+      dates:{years:[],months:[]},
+      filter:{category_id:'',year:'',month:''},
+      pageData:{total:0,page:1,pages:1,list:[]},
+      pageStat:{income:0,expense:0},
+      async init(){
+        if(this.token){
+          axios.defaults.headers.common['Authorization']='Bearer '+this.token
+          await this.loadDates(); this.loadPage(); this.loadCats()
+        }
+      },
+      async handleAuth(){
+        const url=this.tab==='login'?'/login':'/register'
+        const {data}=await axios.post(url,this.form)
+        if(data.token){localStorage.setItem('token',data.token);location.reload()}else alert(data.msg||'错误')
+      },
+      logout(){localStorage.clear();location.reload()},
+      async loadCats(){this.cats=(await axios.get('/categories')).data},
+      async loadDates(){
+        const rows=(await axios.get('/records/dates')).data
+        this.dates={years:[...new Set(rows.map(r=>r.year))],months:[...new Set(rows.map(r=>r.month))]}
+      },
+      async loadPage(){
+        const params={page:this.pageData.page,size:20,...this.filter}
+        const {data}=await axios.get('/records/search',{params})
+        this.pageData=data;this.pageStat=data.stat
+      },
+      turn(p){if(p<1||p>this.pageData.pages)return;this.pageData.page=p;this.loadPage()},
+      resetFilter(){this.filter={category_id:'',year:'',month:''};this.pageData.page=1;this.loadPage()},
+      async addRecord(){
+        await axios.post('/records',this.newRec)
+        this.newRec.amount='';this.newRec.remark='';this.loadPage()
+      },
+      edit(r){this.editRec={...r};this.editType=r.type;this.modal=true},
+      async saveEdit(){
+        await axios.put('/records/'+this.editRec.id,this.editRec)
+        this.modal=false;this.loadPage()
+      },
+      async del(id){if(!confirm('删除不可恢复！'))return;await axios.delete('/records/'+id);this.loadPage()},
+      async addCat(){
+        await axios.post('/categories',this.catForm)
+        this.catForm.name='';this.showCatForm=false;await this.loadCats()
+      }
+    }))
+  })
+  </script>
+</body>
+</html>
