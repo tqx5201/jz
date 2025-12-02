@@ -70,7 +70,7 @@ async function auth(c, next) {
 app.get('/', (c) => c.html(htmlContent))
 
 /* ===== 4. API 总入口 ===== */
-app.post('/api', async (c) => {
+app.post('/api.php', async (c) => {
   const JWT_SECRET = c.env.JWT_SECRET
   const db = c.env.DB
   await initDB(db)
