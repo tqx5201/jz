@@ -5,14 +5,14 @@
 <title>记账小程序</title>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <script src="https://cdn.tailwindcss.com"></script>
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.5.0/chart.min.js"></script>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"/>
 <style>
   .tab-active{border-bottom:3px solid #3b82f6;color:#3b82f6}
   .fade-in{animation:fadeIn .3s ease-in}@keyframes fadeIn{from{opacity:0}to{opacity:1}}
   .btn-inc.active{background:#d1fae5;color:#065f46;border-color:#34d399}
   .btn-exp.active{background:#fee2e2;color:#991b1b;border-color:#f87171}
-  .chart-box{max-width:100%;height:280px}
+  .chart-box{max-width:100%;height:265px}
 </style>
 </head>
 <body class="bg-gray-900" style="background-color:#111827">
@@ -40,7 +40,7 @@
 
 	<!-- ================= 主界面 ================= -->
 	<div id="mainApp" class="hidden flex flex-col h-screen">
-	   <header class="bg-white shadow-sm p-4 flex justify-between items-center">
+	   <header class="bg-blue-400 shadow-sm p-4 flex justify-between items-center">
 		  <h1 class="text-xl font-semibold text-gray-800">我的账本</h1>
 		  <div class="flex items-center space-x-2">
 			  <span id="userInfo" class="text-sm text-gray-600"></span>
@@ -53,11 +53,11 @@
 	  <main class="flex-1 overflow-y-auto">
 		<div id="flowPage" class="page">
 		  <div class="grid grid-cols-2 gap-4 p-4">
-			<div class="bg-white p-4 rounded shadow border border-green-300"><div class="text-sm text-gray-600">最近收入</div><div id="incSum" class="text-green-600 font-bold text-xl">¥0</div></div>
-			<div class="bg-white p-4 rounded shadow  border border-red-300"><div class="text-sm text-gray-600">最近支出</div><div id="expSum" class="text-red-600 font-bold text-xl">¥0</div></div>
+			<div class="bg-white p-4 rounded shadow border border-green-300"><div class="text-sm text-gray-600">近期收入</div><div id="incSum" class="text-green-600 font-bold text-xl">¥0</div></div>
+			<div class="bg-white p-4 rounded shadow  border border-red-300"><div class="text-sm text-gray-600">近期支出</div><div id="expSum" class="text-red-600 font-bold text-xl">¥0</div></div>
 		  </div>
 		  <div class="mx-4 mb-4 bg-white rounded shadow border border-blue-300">
-			<div class="p-3 border-b font-semibold">最近6笔</div>
+			<div class="p-3 border-b font-semibold">最近10笔</div>
 			<div id="recordList" class="divide-y"></div>
 		  </div>
 		</div>
@@ -68,7 +68,7 @@
 		<!-- ================= 分析页：双饼图 + 下方清单 ================= -->
 		<div id="anaPage" class="page hidden">
 		  <!-- 周期切换 + 翻页 -->
-		  <div class="bg-white p-3 flex items-center justify-between text-sm">
+		  <div class="bg-white p-4 flex items-center justify-between text-sm">
 			<button id="prevBtn" class="px-3 py-1 border rounded">‹ 上一</button>
 			<div class="flex items-center space-x-2">
 			  <button data-period="week"   class="period-btn px-2 py-1 border rounded text-xs">周</button>
@@ -78,9 +78,17 @@
 			<span id="dateTitle" class="font-semibold"></span>
 			<button id="nextBtn" class="px-3 py-1 border rounded">下一 ›</button>
 		  </div>
-
-		  <!-- 双饼图：收入 / 支出分开 -->
+        
+		<div class="mx-4 grid grid-cols-1">
+		  <!-- 类别筛选（不分收入/支出） -->
+          <select id="catFilter" class="px-2 py-1 border rounded text-sm rounded shadow border border-orange-300">
+            <option value="">全部类别</option>
+          </select>
+		</div> 
+		
+	      <!-- 双饼图：收入 / 支出分开 -->
 		  <div class="p-4 grid gap-4 grid-cols-1 md:grid-cols-2">
+
 			<div class="bg-white p-4 rounded shadow chart-box border border-green-300"><canvas id="pieInc"></canvas></div>
 			<div class="bg-white p-4 rounded shadow chart-box border border-red-300"><canvas id="pieExp"></canvas></div>
 		  </div>
@@ -94,14 +102,14 @@
 
 	  </main>
 
-<!-- 底部导航：吸附底端，不随滚动 -->
+      <!-- 底部导航：吸附底端，不随滚动 -->
       <footer class="flex-shrink-0 bg-white border-t flex text-center text-xs">
         <button data-p="flow" class="tab-btn flex-1 py-2 tab-active"><i class="fas fa-list block mb-1"></i>概览</button>
         <button data-p="ana" class="tab-btn flex-1 py-2"><i class="fas fa-chart-bar block mb-1"></i>流水</button>
       </footer>
 
       <!-- 记账按钮：底部居中，不随滚动 -->
-      <button id="addBtn" class="fixed bottom-7 left-1/2 -translate-x-1/2 w-12 h-12 md:w-10 md:h-10 bg-blue-500 text-white rounded-full shadow-lg text-lg md:text-sm">
+      <button id="addBtn" class="fixed bottom-1 left-1/2 -translate-x-1/2 w-12 h-12 md:w-10 md:h-10 bg-blue-500 text-white rounded-full shadow-lg text-lg md:text-sm">
         <i class="fas fa-plus"></i>
       </button>
 
@@ -151,10 +159,16 @@
 
 
 <script>
+let tk='',uid='',uname='',current='flow',editingId,chartPie,chartBar,period='month',offset=0;
+let currentType='income';
+let chartInc, chartExp;
+let catList=[];
+
+
 /* ================= 工具 ================= */
 const $=q=>document.querySelector(q);
 const ajax=async(d)=>{
-  const res=await fetch('/api',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+tk},body:JSON.stringify(d)});
+  const res=await fetch('api.php',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+tk},body:JSON.stringify(d)});
   return res.json();
 };
 const toast=(m,t=2500)=>{
@@ -163,7 +177,6 @@ const toast=(m,t=2500)=>{
 };
 
 /* ================= JWT ================= */
-let tk='',uid='',uname='',current='flow',editingId,chartPie,chartBar,period='month',offset=0;
 function setToken(t){tk=t;localStorage.setItem('tk',t);}
 function getToken(){return localStorage.getItem('tk')||'';}
 function clrToken(){localStorage.removeItem('tk');tk='';}
@@ -186,7 +199,7 @@ authForm.onsubmit=async e=>{
   const user=$('#user').value.trim(),pwd=$('#pwd').value.trim();
   if(!user||!pwd)return authTip.textContent='请填写完整',authTip.classList.remove('hidden');
   const res=await ajax({op:isLogin?'login':'register',user,pwd});
-  if(res.token){setToken(res.token);uname=res.uname;enterApp();}
+  if(res.token){setToken(res.token);uname=uid=user;enterApp();}
   else{authTip.textContent=res.error||'操作失败';authTip.classList.remove('hidden');}
 };
 
@@ -214,7 +227,7 @@ function bindMainEvents(){
     if(!name)return toast('名称不能为空');
     await ajax({op:'catAdd',type:$('#newCatInput').dataset.type,name});
     $('#catModal').classList.add('hidden');
-    toast('已添加');loadCategories(currentType);$('#category').value=name;
+    toast('已添加');loadCatList();loadCategories(currentType);$('#category').value=name;
   };
   $('#prevBtn').onclick=()=>{offset--;loadAna();};
   $('#nextBtn').onclick=()=>{offset++;loadAna();};
@@ -231,11 +244,11 @@ function switchTab(p){
   current=p;document.querySelectorAll('.page').forEach(pg=>pg.classList.add('hidden'));
   $(`#${p==='flow'?'flow':'ana'}Page`).classList.remove('hidden');
   document.querySelectorAll('.tab-btn').forEach(t=>t.classList.toggle('tab-active',t.dataset.p===p));
-  if(p==='ana')loadAna();
+  if(p==='ana')loadAna();loadCatFilter();
 }
 
 /* ================= 记账/分类 ================= */
-let currentType='expense';
+
 async function initAddForm(typ,isadd=1){
   if(isadd){editingId=null;$('#ModalTitle').textContent='记一笔';$('#amount').value='';$('#recordDate').value='';$('#note').value='';$('#category').value='';}
   currentType=typ;
@@ -245,14 +258,27 @@ async function initAddForm(typ,isadd=1){
   await loadCategories(typ);$('#recordDate').value=new Date().toISOString().slice(0,10);
 }
 
-
-
+//全局分类
+async function loadCatList() {
+  catList = await ajax({op:'catList'}); // 系统分类
+}
+//记一笔的类别下拉
 async function loadCategories(typ){
-  const list=await ajax({op:'catList',type:typ});
   const s=$('#category');s.innerHTML='';
-  list.forEach(c=>s.append(new Option(c.name,c.name)));
+  const filterList = catList.filter(c => c.type === typ);
+  console.log(filterList);
+  filterList.forEach(c=>s.append(new Option(c.name,c.name)));
   s.append(new Option('+ 新增分类','__NEW__'));
 }
+//流水页的类别下拉
+async function loadCatFilter() {
+  const s = $('#catFilter');
+  s.innerHTML = '<option value="">全部类别</option>';
+  catList.forEach(c => s.append(new Option(c.name, c.name)));
+}
+
+
+
 document.addEventListener('change',async e=>{
   if(e.target.id==='category' && e.target.value==='__NEW__'){
     $('#catModal').classList.remove('hidden');
@@ -262,34 +288,78 @@ document.addEventListener('change',async e=>{
   }
 });
 
-/* ================= 流水 ================= */
+/* ================= 最近10流水 ================= */
 async function loadList(){
-  const res=await ajax({op:'list', limit:6});
+  const res=await ajax({op:'list', limit:10});
   let h='';res.forEach(r=>{
     const sign=r.type==='income'?'+':'-',col=r.type==='income'?'text-green-600':'text-red-600';
-    h+=`<div class="p-3 flex justify-between"><div><div class="font-semibold">${r.category}</div><div class="text-xs text-gray-500">${r.date} ${r.note||''}</div></div><div class="${col} font-bold">${sign}¥${(+r.amount).toFixed(2)}</div></div>`;
+    h+=`<div class="px-2 p-1 flex justify-between items-center"><div><div class="font-semibold">${r.category}</div><div class="text-xs text-gray-500">${r.date} ${r.note||''}</div></div><div class="${col} font-bold">${sign}¥${(+r.amount).toFixed(2)}</div></div>`;
   });
-  $('#recordList').innerHTML=h||'<div class="p-4 text-gray-500 text-center">暂无记录</div>';
+  $('#recordList').innerHTML=h||'<div class="p-1 text-gray-500 text-center">暂无记录</div>';
   $('#incSum').textContent='¥'+(res.filter(r=>r.type==='income').reduce((s,a)=>s+ +a.amount,0)).toFixed(2);
   $('#expSum').textContent='¥'+(res.filter(r=>r.type==='expense').reduce((s,a)=>s+ +a.amount,0)).toFixed(2);
 }
+
+/* ================= 流水页的清单 ================= */
+async function loadAnaList(period, offset, category, limit = 5, page = 1) {
+  const res = await ajax({ op: 'list', period, offset, category, limit, page });
+  let h = '';
+  res.forEach(r => {
+    const sign = r.type === 'income' ? '+' : '-';
+    const col = r.type === 'income' ? 'text-green-600' : 'text-red-600';
+    h += `<div class="p-3 flex justify-between items-center border-b">
+      <div>
+        <div class="font-semibold">${r.category}</div>
+        <div class="text-xs text-gray-500">${r.date} ${r.note || ''}</div>
+      </div>
+      <div class="flex items-center space-x-2">
+        <span class="${col} font-bold">${sign}¥${(+r.amount).toFixed(2)}</span>
+        <button class="text-blue-500 text-sm px-2 py-1 rounded hover:bg-blue-50" onclick="editRecord(${r.id})">
+          <i class="fas fa-pen text-lg"></i>
+        </button>
+        <button class="text-red-500 text-sm px-2 py-1 rounded hover:bg-red-50 ml-2" onclick="delRecord(${r.id})">
+          <i class="fas fa-trash text-lg"></i>
+        </button>
+      </div>
+    </div>`;
+  });
+
+  // 如果返回数据长度等于 limit，说明可能还有更多
+  const hasMore = res.length === limit;
+  if (hasMore) {
+    h += `<div id="loadMoreBtn" class="p-3 text-center">
+      <button onclick="loadAnaList('${period}', ${offset}, '${category}', ${limit}, ${page + 1})"
+        class="text-blue-600 hover:underline text-sm">
+        加载更多…
+      </button>
+    </div>`;
+  }
+
+  // 首次加载时直接替换内容；点击“加载更多”时追加
+  if (page === 1) {
+    $('#anaList').innerHTML = h || '<div class="p-1 text-gray-500 text-center">暂无记录</div>';
+  } else {
+    // 去掉旧的“加载更多”按钮，再追加新数据
+    $('#loadMoreBtn')?.remove();
+    $('#anaList').insertAdjacentHTML('beforeend', h);
+  }
+}
+
 
 /* ================= 编辑 & 删除 ================= */
 async function editRecord(id){
   editingId=id;
   const list=await ajax({op:'list',id:id}),row=list.find(r=>r.id==id);
   if(!row)return toast('记录不存在');
- 
-  $('#amount').value=row.amount;$('#recordDate').value=row.date;$('#note').value=row.note;
-  
-  
-  $('#ModalTitle').textContent='编辑流水';
-  $('#addModal').classList.remove('hidden');
   
   await loadCategories(row.type);
   //await initAddForm(row.type,0);
   
+  
+  $('#amount').value=row.amount;$('#recordDate').value=row.date;$('#note').value=row.note;
   $('#category').value=row.category;
+  $('#ModalTitle').textContent='编辑流水';
+  $('#addModal').classList.remove('hidden');
 }
 async function delRecord(id){
   if(!confirm('确定删除？'))return;
@@ -312,12 +382,12 @@ document.querySelectorAll('.period-btn').forEach(btn=>{
 });
 
 /* ========= 分析页：双饼图 + 下方清单 ========= */
-let chartInc, chartExp;
+
 
 async function loadAna(){
   const res = await ajax({op:'stat', period, offset});
   $('#dateTitle').textContent = res.title;
-
+ 
   // 1. 无数据
   if(res.cat.length===0 && res.list.length===0){
     [chartInc,chartExp].forEach(c=>{if(c){c.destroy();c=null;}});
@@ -325,9 +395,17 @@ async function loadAna(){
     return;
   }
 
+
+  const filterCat = $('#catFilter').value;   // 空=全部
+
+  // 3. 分收入/支出双饼图（可选按类别筛选）
+  const incCat = res.cat.filter(i => (!filterCat || i.category === filterCat) && i.type === 'income');
+  const expCat = res.cat.filter(i => (!filterCat || i.category === filterCat) && i.type === 'expense');
+
+
+
   // 2. 分类汇总 → 双饼图
-  const incCat = res.cat.filter(i=>i.type==='income'),
-        expCat = res.cat.filter(i=>i.type==='expense');
+  //const incCat = res.cat.filter(i=>i.type==='income'),expCat = res.cat.filter(i=>i.type==='expense');
 
   // 收入饼图
   if(chartInc){chartInc.destroy();chartInc=null;}
@@ -335,26 +413,29 @@ async function loadAna(){
     type: 'pie',
     data: {
       labels: incCat.map(i=>i.category),
-      datasets: [{ data: incCat.map(i=>i.total), backgroundColor:['#10b981','#34d399','#6ee7b7'] }]
+      datasets: [
+      { data: incCat.map(i=>i.total), backgroundColor:['#10b981','#34d399','#6ee7b7'] },
+      //{ data: expCat.map(i=>i.total), backgroundColor:['#ef4444','#f87171','#fca5a5'] }
+    ]
     },
-    options: { maintainAspectRatio:false, plugins:{ title:{display:true,text:'收入构成'}, legend:{position:'bottom'} } }
+    options: { maintainAspectRatio:false, plugins:{ title:{display:true,text:'收入构成'}, legend:{position:'right'} } }
   });
 
   // 支出饼图
   if(chartExp){chartExp.destroy();chartExp=null;}
   chartExp = new Chart($('#pieExp'), {
-    type: 'pie',
+    type: 'doughnut',
     data: {
       labels: expCat.map(i=>i.category),
       datasets: [{ data: expCat.map(i=>i.total), backgroundColor:['#ef4444','#f87171','#fca5a5'] }]
     },
-    options: { maintainAspectRatio:false, plugins:{ title:{display:true,text:'支出构成'}, legend:{position:'bottom'} } }
+    options: { maintainAspectRatio:false, plugins:{ title:{display:true,text:'支出构成'}, legend:{position:'right'} } }
   });
-
+/*
   // 3. 当前周期全部记录（正序，收入/支出混合，可编辑/删除）
   let html='';
   
-  res.list.forEach(r=>{
+  res.list.filter(i=>(!filterCat || i.category === filterCat)).forEach(r=>{
     const sign=r.type==='income'?'+':'-', col=r.type==='income'?'text-green-600':'text-red-600';
     html+=`<div class="p-3 flex justify-between items-center border-b">
       <div><div class="font-semibold">${r.category}</div><div class="text-xs text-gray-500">${r.date} ${r.note||''}</div></div>
@@ -366,12 +447,14 @@ async function loadAna(){
     </div>`;
   });
   //console.log(html);
-  //$('#anaList').innerHTML(html||'<div class="p-4 text-gray-500 text-center">本区间无流水</div>');
-  
-  const anaList = document.getElementById('anaList');
-  anaList.innerHTML = html || '<div class="p-4 text-gray-500 text-center">本区间无流水</div>';
+  $('#anaList').innerHTML=html||'<div class="p-4 text-gray-500 text-center">本区间无流水</div>';
+*/
+loadAnaList(period, offset, filterCat);
+
+
 }
 
+$('#catFilter').onchange = () => loadAna();
 
 
 
@@ -379,7 +462,7 @@ async function loadAna(){
 window.onload=async()=>{
   tk=getToken();if(!tk)return;
   const ck=await ajax({op:'check'});//console.log(ck);
-  if(ck.ok){uid=ck.uid;uname=ck.uname;enterApp();}else{ clrToken()};
+  if(ck.ok){uid=ck.uid;uname=ck.uname;await loadCatList();enterApp();}else{ clrToken()};
 };
 </script>
 
